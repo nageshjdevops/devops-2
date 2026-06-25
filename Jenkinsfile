@@ -4,7 +4,7 @@ pipeline {
 
     stages {
 
-        stage('SCM & BUILD on Master') {
+        stage('SCM & BUILD') {
             agent {
                 node {
                     label 'built-in'
@@ -18,13 +18,15 @@ pipeline {
                 git clone https://github.com/nageshjdevops/project-1.git
 
                 cd project-1
+
                 mvn clean package
-                ls -ltr target/*.war
+
+                aws s3 cp target/LoginWebApp.war s3://war-loginwebapp/
                 '''
             }
         }
 
-        stage('Copy WAR to Slave') {
+        stage('DEPLOY') {
             agent {
                 node {
                     label 'slave-2'
@@ -34,29 +36,31 @@ pipeline {
 
             steps {
                 sh '''
-                rm -rf *
+                rm -f LoginWebApp.war
+
+                aws s3 cp s3://war-loginwebapp/LoginWebApp.war .
+
+                rm -rf /mnt/apache-tomcat-10.1.55/webapps/LoginWebApp
+                rm -f /mnt/apache-tomcat-10.1.55/webapps/*.war
+
+                cp LoginWebApp.war /mnt/apache-tomcat-10.1.55/webapps/
+
+                sleep 15
+
+                ls -ltr /mnt/apache-tomcat-10.1.55/webapps/
                 '''
             }
         }
 
-        stage('Deploy on Slave') {
+        stage('VERIFY') {
             agent {
                 node {
                     label 'slave-2'
-                    customWorkspace '/home/ec2-user/jenkins'
                 }
             }
 
             steps {
                 sh '''
-                cp /mnt/war/project-1/target/*.war /home/ec2-user/jenkins/
-
-                ls -ltr
-
-                sudo cp *.war /root/apache-tomcat-10.1.55/webapps/
-
-                sleep 10
-
                 curl -I http://localhost:8080 || true
                 '''
             }
@@ -65,10 +69,11 @@ pipeline {
 
     post {
         success {
-            echo 'Application deployed successfully'
+            echo 'BUILD SUCCESSFUL - WAR uploaded to S3 and deployed to Tomcat'
         }
+
         failure {
-            echo 'Pipeline failed'
+            echo 'PIPELINE FAILED'
         }
     }
 }
