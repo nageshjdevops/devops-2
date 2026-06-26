@@ -1,23 +1,27 @@
 pipeline {
 
-    agent none
+    agent {
+        node {
+            label 'built-in'
+            customWorkspace '/mnt/war'
+        }
+    }
 
     stages {
 
-        stage('SCM & BUILD') {
-            agent {
-                node {
-                    label 'built-in'
-                    customWorkspace '/mnt/war'
-                }
-            }
-
+        stage('SCM') {
             steps {
                 sh '''
-                rm -rf *
+                rm -rf project-1
                 git clone https://github.com/nageshjdevops/project-1.git
+                '''
+            }
+        }
 
-                cd project-1
+        stage('BUILD') {
+            steps {
+                sh '''
+                cd /mnt/war/project-1
 
                 mvn clean package
 
@@ -27,58 +31,26 @@ pipeline {
         }
 
         stage('DEPLOY') {
+
             agent {
                 node {
                     label 'slave-2'
-                    customWorkspace '/home/ec2-user/jenkins'
+                    customWorkspace '/mnt/slave'
                 }
             }
 
             steps {
+
                 sh '''
+                cd /mnt/slave
+
                 rm -f LoginWebApp.war
 
                 aws s3 cp s3://war-loginwebapp/LoginWebApp.war .
 
-                /mnt/apache-tomcat-10.1.55/bin/shutdown.sh || true
-                sleep 5
-
-                rm -rf /mnt/apache-tomcat-10.1.55/webapps/LoginWebApp
-                rm -f /mnt/apache-tomcat-10.1.55/webapps/*.war
-
                 cp LoginWebApp.war /mnt/apache-tomcat-10.1.55/webapps/
-
-                /mnt/apache-tomcat-10.1.55/bin/startup.sh
-
-                sleep 20
-
-                ls -ltr /mnt/apache-tomcat-10.1.55/webapps
                 '''
             }
-        }
-
-        stage('VERIFY') {
-            agent {
-                node {
-                    label 'slave-2'
-                }
-            }
-
-            steps {
-                sh '''
-                curl -I http://localhost:8080/LoginWebApp || true
-                '''
-            }
-        }
-    }
-
-    post {
-        success {
-            echo 'BUILD SUCCESSFUL - WAR uploaded to S3 and deployed to Tomcat'
-        }
-
-        failure {
-            echo 'PIPELINE FAILED'
         }
     }
 }
