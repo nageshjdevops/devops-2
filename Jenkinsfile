@@ -40,14 +40,19 @@ pipeline {
 
                 aws s3 cp s3://war-loginwebapp/LoginWebApp.war .
 
+                /mnt/apache-tomcat-10.1.55/bin/shutdown.sh || true
+                sleep 5
+
                 rm -rf /mnt/apache-tomcat-10.1.55/webapps/LoginWebApp
                 rm -f /mnt/apache-tomcat-10.1.55/webapps/*.war
 
                 cp LoginWebApp.war /mnt/apache-tomcat-10.1.55/webapps/
 
-                sleep 15
+                /mnt/apache-tomcat-10.1.55/bin/startup.sh
 
-                ls -ltr /mnt/apache-tomcat-10.1.55/webapps/
+                sleep 20
+
+                ls -ltr /mnt/apache-tomcat-10.1.55/webapps
                 '''
             }
         }
@@ -61,7 +66,7 @@ pipeline {
 
             steps {
                 sh '''
-                curl -I http://localhost:8080 || true
+                curl -I http://localhost:8080/LoginWebApp || true
                 '''
             }
         }
